@@ -4,20 +4,66 @@ from django.db import models
 
 class Task(models.Model):
     CATEGORY_CHOICES = [
-        ('school', 'School'),
-        ('work', 'Work'),
-        ('fun', 'Fun'),
-        ('other', 'Other'),
+        ('School', 'School'),
+        ('Work', 'Work'),
+        ('Personal', 'Personal'),
+        ('Other', 'Other'),
     ]
+    
+    PRIORITY_CHOICES = [
+        ('High', 'High'),
+        ('Medium', 'Medium'),
+        ('Low', 'Low'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('done', 'Done'),
+    ]
+    
     title = models.CharField(max_length=200)
-    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
-    due_date = models.DateTimeField(null=True, blank=True)
-    estimated_hours = models.FloatField(null=True, blank=True)
-    priority = models.IntegerField(default=3)  # 1 = High, 5 = Low
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='Medium')
+    minutes = models.IntegerField(default=0)  # Store as minutes to match frontend
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='Other')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    due_date = models.CharField(max_length=10, null=True, blank=True)  # MM/DD format like frontend
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title
+    
+    @property
+    def hours(self):
+        """Convert minutes to hours for display"""
+        return round(self.minutes / 60, 1) if self.minutes > 0 else 0
+
+
+class Habit(models.Model):
+    name = models.CharField(max_length=200)
+    mon = models.BooleanField(default=False)
+    tue = models.BooleanField(default=False)
+    wed = models.BooleanField(default=False)
+    thu = models.BooleanField(default=False)
+    fri = models.BooleanField(default=False)
+    sat = models.BooleanField(default=False)
+    sun = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name
+    
+    @property
+    def checks(self):
+        """Return checks in frontend format"""
+        return {
+            'Mon': self.mon,
+            'Tue': self.tue,
+            'Wed': self.wed,
+            'Thu': self.thu,
+            'Fri': self.fri,
+            'Sat': self.sat,
+            'Sun': self.sun,
+        }
 
 
 class Goal(models.Model):
