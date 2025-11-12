@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { toggleTask } from '../state/tasksSlice';
+import { toggleTask, updateTask } from '../state/tasksSlice';
 
 export function TodaysTasks() {
   const dispatch = useDispatch();
@@ -11,7 +11,10 @@ export function TodaysTasks() {
   const todayString = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
   
   const tasks = useSelector(state => 
-    state.tasks.items.filter(task => task.dueDate === todayString)
+    state.tasks.items.filter(task => {
+      const dueDate = task.dueDate || task.due_date; // Handle both field names
+      return dueDate === todayString;
+    })
   );
   
   const pendingTasks = tasks.filter(task => task.status === 'pending');
@@ -21,7 +24,15 @@ export function TodaysTasks() {
     <View style={styles.taskItem}>
       <Pressable 
         style={[styles.checkbox, item.status === 'done' && styles.checkboxDone]}
-        onPress={() => dispatch(toggleTask(item.id))}
+        onPress={async () => {
+          const updatedTask = { ...item, status: item.status === 'done' ? 'pending' : 'done' };
+          try {
+            await dispatch(updateTask({ id: item.id, ...updatedTask }));
+          } catch (error) {
+            console.error('Error updating task:', error);
+            dispatch(toggleTask(item.id)); // Fallback to local
+          }
+        }}
       >
         <Text style={styles.checkboxText}>
           {item.status === 'done' ? '✓' : ''}

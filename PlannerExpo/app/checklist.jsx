@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import { toggleTask, deleteTask } from '../state/tasksSlice';
+import { toggleTask, deleteTask, updateTask, removeTask } from '../state/tasksSlice';
 import { HabitsGrid } from '../components/HabitsGrid';
 import { RunningTodoList } from '../components/RunningTodoList';
 import { TaskRow } from '../components/TaskRow';
@@ -21,7 +21,10 @@ export default function ChecklistScreen() {
       const dateString = `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getDate().toString().padStart(2, '0')}`;
       
       const dayTasks = tasks
-        .filter(task => task.dueDate === dateString)
+        .filter(task => {
+          const dueDate = task.dueDate || task.due_date; // Handle both field names
+          return dueDate === dateString;
+        })
         .sort((a, b) => {
           // Sort completed tasks to bottom, then by priority
           if (a.status === 'done' && b.status !== 'done') return 1;
@@ -71,8 +74,23 @@ export default function ChecklistScreen() {
                       <TaskRow
                         key={task.id}
                         task={task}
-                        onToggle={() => dispatch(toggleTask(task.id))}
-                        onDelete={() => dispatch(deleteTask(task.id))}
+                        onToggle={async () => {
+                          const updatedTask = { ...task, status: task.status === 'done' ? 'pending' : 'done' };
+                          try {
+                            await dispatch(updateTask({ id: task.id, ...updatedTask }));
+                          } catch (error) {
+                            console.error('Error updating task:', error);
+                            dispatch(toggleTask(task.id)); // Fallback to local
+                          }
+                        }}
+                        onDelete={async () => {
+                          try {
+                            await dispatch(removeTask(task.id));
+                          } catch (error) {
+                            console.error('Error deleting task:', error);
+                            dispatch(deleteTask(task.id)); // Fallback to local
+                          }
+                        }}
                       />
                     ))
                   )}

@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { addTask, toggleTask, deleteTask } from '../state/tasksSlice';
+import { addTask, toggleTask, deleteTask, createTask, fetchTasks, updateTask, removeTask } from '../state/tasksSlice';
 import { TaskRow } from '../components/TaskRow';
 
 const PRIORITIES = ['High', 'Medium', 'Low'];
@@ -10,6 +10,13 @@ const CATEGORIES = ['School', 'Work', 'Personal', 'Other'];
 export default function AddTaskScreen() {
   const dispatch = useDispatch();
   const allItems = useSelector(state => state.tasks.items);
+  const loading = useSelector(state => state.tasks.loading);
+  const error = useSelector(state => state.tasks.error);
+  
+  // Fetch tasks when component mounts
+  useEffect(() => {
+    dispatch(fetchTasks());
+  }, [dispatch]);
   
   // Get 5 most recently added tasks, with completed items at bottom
   const recentItems = allItems
@@ -18,7 +25,7 @@ export default function AddTaskScreen() {
       // Sort completed tasks to bottom, then by creation date
       if (a.status === 'done' && b.status !== 'done') return 1;
       if (b.status === 'done' && a.status !== 'done') return -1;
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
     })
     .slice(0, 5);
 
@@ -30,16 +37,48 @@ export default function AddTaskScreen() {
 
   const isValid = useMemo(() => title.trim().length > 0 && Number(hours) >= 0, [title, hours]);
 
-  const onAdd = () => {
+  const onAdd = async () => {
     if (!isValid) return;
-    dispatch(addTask({ title, priority, hours, category, dueDate: dueDate || null }));
-    setTitle(''); setHours(''); setPriority('Medium'); setCategory('School'); setDueDate('');
+    
+    const taskData = {
+      title: title.trim(),
+      priority,
+      minutes: Math.round((Number(hours) || 0) * 60), // Convert to minutes for backend
+      category,
+      due_date: dueDate?.trim() || null, // Use due_date for backend
+      status: 'pending'
+    };
+    
+    try {
+      await dispatch(createTask(taskData)); // Use API call
+      // Clear form on successful creation
+      setTitle(''); setHours(''); setPriority('Medium'); setCategory('School'); setDueDate('');
+    } catch (error) {
+      console.error('Error creating task:', error);
+      // Fallback to local storage if API fails
+      dispatch(addTask({ title, priority, hours, category, dueDate: dueDate || null }));
+      setTitle(''); setHours(''); setPriority('Medium'); setCategory('School'); setDueDate('');
+    }
   };
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.title}>Add Task</Text>
+        
+        {/* Error Display */}
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>⚠️ {error}</Text>
+          </View>
+        )}
+        
+        {/* Loading Indicator */}
+        {loading && (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>🔄 Connecting to backend...</Text>
+          </View>
+        )}
         
         {/* Form Section */}
         <View style={styles.formSection}>
@@ -115,8 +154,23 @@ export default function AddTaskScreen() {
                 <TaskRow
                   key={item.id}
                   task={item}
-                  onToggle={() => dispatch(toggleTask(item.id))}
-                  onDelete={() => dispatch(deleteTask(item.id))}
+                  onToggle={async () => {
+                    const updatedTask = { ...item, status: item.status === 'done' ? 'pending' : 'done' };
+                    try {
+                      await dispatch(updateTask({ id: item.id, ...updatedTask }));
+                    } catch (error) {
+                      console.error('Error updating task:', error);
+                      dispatch(toggleTask(item.id)); // Fallback to local
+                    }
+                  }}
+                  onDelete={async () => {
+                    try {
+                      await dispatch(removeTask(item.id));
+                    } catch (error) {
+                      console.error('Error deleting task:', error);
+                      dispatch(deleteTask(item.id)); // Fallback to local
+                    }
+                  }}
                 />
               ))
             )}
@@ -278,6 +332,32 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: 20,
+  },
+  errorContainer: {
+    backgroundColor: '#ffebee',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#ffcdd2',
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  loadingContainer: {
+    backgroundColor: '#e3f2fd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#bbdefb',
+  },
+  loadingText: {
+    color: '#1976d2',
+    fontSize: 14,
+    fontWeight: '500',
   },
 
 });

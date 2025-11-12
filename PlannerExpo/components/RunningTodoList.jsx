@@ -1,14 +1,18 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { toggleTask, deleteTask } from '../state/tasksSlice';
+import { toggleTask, deleteTask, updateTask, removeTask } from '../state/tasksSlice';
 import { TaskRow } from './TaskRow';
 
 export function RunningTodoList() {
   const dispatch = useDispatch();
   const tasks = useSelector(state => 
     state.tasks.items
-      .filter(task => !task.dueDate) // No due date
+      .filter(task => {
+        // Check both frontend and backend field names, and ensure no due date is set
+        const dueDate = task.dueDate || task.due_date;
+        return !dueDate || dueDate === '' || dueDate === null;
+      })
       .sort((a, b) => {
         // Sort completed tasks to bottom, then by priority
         if (a.status === 'done' && b.status !== 'done') return 1;
@@ -21,8 +25,23 @@ export function RunningTodoList() {
   const renderTask = ({ item }) => (
     <TaskRow
       task={item}
-      onToggle={() => dispatch(toggleTask(item.id))}
-      onDelete={() => dispatch(deleteTask(item.id))}
+      onToggle={async () => {
+        const updatedTask = { ...item, status: item.status === 'done' ? 'pending' : 'done' };
+        try {
+          await dispatch(updateTask({ id: item.id, ...updatedTask }));
+        } catch (error) {
+          console.error('Error updating task:', error);
+          dispatch(toggleTask(item.id)); // Fallback to local
+        }
+      }}
+      onDelete={async () => {
+        try {
+          await dispatch(removeTask(item.id));
+        } catch (error) {
+          console.error('Error deleting task:', error);
+          dispatch(deleteTask(item.id)); // Fallback to local
+        }
+      }}
     />
   );
 
